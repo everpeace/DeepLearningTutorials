@@ -535,6 +535,12 @@ def test_rbm(learning_rate=0.1, training_epochs=15,
     image.save('samples.png')
     # end-snippet-7
     os.chdir('../')
+    return rbm
 
 if __name__ == '__main__':
-    test_rbm()
+    rbm = test_rbm(output_folder='RBM_plots')
+    import cPickle
+    save_file = open('RBM_plots/weights', 'wb')
+    for p in rbm.params:
+        cPickle.dump(p.get_value(borrow=True), save_file, -1)
+    save_file.close()
