@@ -14,6 +14,12 @@ from logistic_sgd import LogisticRegression, load_data
 from mlp import HiddenLayer
 from rbm import RBM
 
+try:
+    import PIL.Image as Image
+except ImportError:
+    import Image
+from utils import tile_raster_images
+import math
 
 # start-snippet-1
 class DBN(object):
@@ -278,7 +284,7 @@ class DBN(object):
 
 def test_DBN(finetune_lr=0.1, pretraining_epochs=100,
              pretrain_lr=0.01, k=1, training_epochs=1000,
-             dataset='mnist.pkl.gz', batch_size=10):
+             dataset='mnist.pkl.gz', batch_size=10, output_folder='DBN_plots'):
     """
     Demonstrates how to train and test a Deep Belief Network.
 
@@ -314,7 +320,7 @@ def test_DBN(finetune_lr=0.1, pretraining_epochs=100,
     print '... building the model'
     # construct the Deep Belief Network
     dbn = DBN(numpy_rng=numpy_rng, n_ins=28 * 28,
-              hidden_layers_sizes=[1000, 1000, 1000],
+              hidden_layers_sizes=[1024, 1024, 1024],
               n_outs=10)
 
     # start-snippet-2
@@ -329,6 +335,9 @@ def test_DBN(finetune_lr=0.1, pretraining_epochs=100,
     print '... pre-training the model'
     start_time = time.clock()
     ## Pre-train layer-wise
+    if not os.path.isdir(output_folder):
+        os.makedirs(output_folder)
+    os.chdir(output_folder)
     for i in xrange(dbn.n_layers):
         # go through pretraining epochs
         for epoch in xrange(pretraining_epochs):
@@ -339,6 +348,18 @@ def test_DBN(finetune_lr=0.1, pretraining_epochs=100,
                                             lr=pretrain_lr))
             print 'Pre-training layer %i, epoch %d, cost ' % (i, epoch),
             print numpy.mean(c)
+            rbm = dbn.rbm_layers[i]
+            image = Image.fromarray(
+                tile_raster_images(
+                    X=rbm.W.get_value(borrow=True).T,
+                    img_shape=(int(math.sqrt(rbm.n_visible)),
+                               int(math.sqrt(rbm.n_visible))),
+                    tile_shape=(int(math.sqrt(rbm.n_hidden)),
+                                int(math.sqrt(rbm.n_hidden))),
+                    tile_spacing=(1, 1)
+                    )
+                )
+            image.save('filters_at_layer_%i_epoch_%i.png' % (i, epoch) )
 
     end_time = time.clock()
     # end-snippet-2
@@ -437,6 +458,26 @@ def test_DBN(finetune_lr=0.1, pretraining_epochs=100,
                           ' ran for %.2fm' % ((end_time - start_time)
                                               / 60.))
 
+    for i in xrange(dbn.n_layers):
+        rbm = dbn.rbm_layers[i]
+        image = Image.fromarray(
+            tile_raster_images(
+                X=rbm.W.get_value(borrow=True).T,
+                img_shape=(int(math.sqrt(rbm.n_visible)),
+                           int(math.sqrt(rbm.n_visible))),
+                tile_shape=(int(math.sqrt(rbm.n_hidden)),
+                            int(math.sqrt(rbm.n_hidden))),
+                tile_spacing=(1, 1)
+                )
+            )
+        image.save('filters_at_layer_%i_fine_tuned.png' % i)
+    os.chdir('../')
+    return dbn
 
 if __name__ == '__main__':
-    test_DBN()
+    dbn = test_DBN(output_folder='DBN_plots')
+    import cPickle
+    save_file = open('DBN_plots/weights', 'wb')
+    for p in dbn.params:
+        cPickle.dump(p.get_value(borrow=True), save_file, -1)
+    save_file.close()
