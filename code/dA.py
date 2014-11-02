@@ -334,6 +334,11 @@ def test_dA(learning_rate=0.1, training_epochs=15,
             c.append(train_da(batch_index))
 
         print 'Training epoch %d, cost ' % epoch, numpy.mean(c)
+        image = Image.fromarray(tile_raster_images(
+            X=da.W.get_value(borrow=True).T,
+            img_shape=(28, 28), tile_shape=(10, 10),
+            tile_spacing=(1, 1)))
+        image.save('filters_corruption_0_at_epoch_%i.png' % epoch)
 
     end_time = time.clock()
 
@@ -391,7 +396,11 @@ def test_dA(learning_rate=0.1, training_epochs=15,
             c.append(train_da(batch_index))
 
         print 'Training epoch %d, cost ' % epoch, numpy.mean(c)
-
+        image = Image.fromarray(tile_raster_images(
+            X=da.W.get_value(borrow=True).T,
+            img_shape=(28, 28), tile_shape=(10, 10),
+            tile_spacing=(1, 1)))
+        image.save('filters_corruption_30_at_epoch_%i.png' % epoch)
     end_time = time.clock()
 
     training_time = (end_time - start_time)
@@ -407,7 +416,12 @@ def test_dA(learning_rate=0.1, training_epochs=15,
     image.save('filters_corruption_30.png')
 
     os.chdir('../')
-
+    return da
 
 if __name__ == '__main__':
-    test_dA()
+    dA = test_dA(output_folder='dA_plots')
+    import cPickle
+    save_file = open('dA_plots/weights', 'wb')
+    for p in dA.params:
+        cPickle.dump(p.get_value(borrow=True), save_file, -1)
+    save_file.close()
