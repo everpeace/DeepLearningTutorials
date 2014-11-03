@@ -43,6 +43,12 @@ from logistic_sgd import LogisticRegression, load_data
 from mlp import HiddenLayer
 from dA import dA
 
+try:
+    import PIL.Image as Image
+except ImportError:
+    import Image
+from utils import tile_raster_images
+import math
 
 # start-snippet-1
 class SdA(object):
@@ -325,7 +331,8 @@ class SdA(object):
 
 def test_SdA(finetune_lr=0.1, pretraining_epochs=15,
              pretrain_lr=0.001, training_epochs=1000,
-             dataset='mnist.pkl.gz', batch_size=1):
+             dataset='mnist.pkl.gz', batch_size=1,
+             output_folder='SdA_plots'):
     """
     Demonstrates how to train and test a stochastic denoising autoencoder.
 
@@ -367,7 +374,8 @@ def test_SdA(finetune_lr=0.1, pretraining_epochs=15,
     sda = SdA(
         numpy_rng=numpy_rng,
         n_ins=28 * 28,
-        hidden_layers_sizes=[1000, 1000, 1000],
+        hidden_layers_sizes=[1024, 1024, 1024],
+        # hidden_layers_sizes=[100],
         n_outs=10
     )
     # end-snippet-3 start-snippet-4
@@ -381,6 +389,9 @@ def test_SdA(finetune_lr=0.1, pretraining_epochs=15,
     print '... pre-training the model'
     start_time = time.clock()
     ## Pre-train layer-wise
+    if not os.path.isdir(output_folder):
+        os.makedirs(output_folder)
+    os.chdir(output_folder)
     corruption_levels = [.1, .2, .3]
     for i in xrange(sda.n_layers):
         # go through pretraining epochs
@@ -393,6 +404,20 @@ def test_SdA(finetune_lr=0.1, pretraining_epochs=15,
                          lr=pretrain_lr))
             print 'Pre-training layer %i, epoch %d, cost ' % (i, epoch),
             print numpy.mean(c)
+            da = sda.dA_layers[i]
+            image = Image.fromarray(
+                tile_raster_images(
+                    X=da.W.get_value(borrow=True).T,
+                    img_shape=(int(math.sqrt(da.n_visible)),
+                               int(math.sqrt(da.n_visible))),
+                    tile_shape=(int(math.sqrt(da.n_hidden)),
+                                int(math.sqrt(da.n_hidden))),
+                    tile_spacing=(1, 1)
+                    )
+                )
+            image.save('filters_at_layer_%i_epoch_%i.png' % (i, epoch) )
+
+
 
     end_time = time.clock()
 
@@ -483,7 +508,27 @@ def test_SdA(finetune_lr=0.1, pretraining_epochs=15,
     print >> sys.stderr, ('The training code for file ' +
                           os.path.split(__file__)[1] +
                           ' ran for %.2fm' % ((end_time - start_time) / 60.))
-
+    for i in xrange(sda.n_layers):
+        da = sda.dA_layers[i]
+        image = Image.fromarray(
+            tile_raster_images(
+                X=da.W.get_value(borrow=True).T,
+                img_shape=(int(math.sqrt(da.n_visible)),
+                           int(math.sqrt(da.n_visible))),
+                tile_shape=(int(math.sqrt(da.n_hidden)),
+                            int(math.sqrt(da.n_hidden))),
+                tile_spacing=(1, 1)
+                )
+            )
+        image.save('filters_at_layer_%i_fine_tuned.png' % i)
+    os.chdir('../')
+    return sda
 
 if __name__ == '__main__':
-    test_SdA()
+    sda = test_SdA(output_folder='SdA_plots')
+    # test_SdA(pretraining_epochs=1, training_epochs=1)
+    import cPickle
+    save_file = open('SdA_plots/weights', 'wb')
+    for p in sda.params:
+        cPickle.dump(p.get_value(borrow=True), save_file, -1)
+    save_file.close()
